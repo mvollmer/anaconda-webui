@@ -29,19 +29,24 @@ import { WrenchIcon, ExternalLinkAltIcon } from "@patternfly/react-icons";
 const _ = cockpit.gettext;
 const N_ = cockpit.noop;
 
-const startBlivetGUI = (onStart, onStarted, errorHandler) => {
-    console.log("Spawning blivet-gui.");
-    // We don't have an event informing that blivet-gui started so just wait a bit.
-    const timeoutId = window.setTimeout(onStarted, 3000);
-    cockpit.spawn(["blivet-gui", "--keep-above", "--auto-dev-updates"], { err: "message" })
-            .then(() => {
-                console.log("blivet-gui exited.");
-                // If the blivet-gui exits earlier cancel the delay
-                window.clearTimeout(timeoutId);
-                return onStarted();
-            })
-            .catch((error) => { window.clearTimeout(timeoutId); errorHandler(error) });
+let cockpit_window = null;
+
+const startCockpitStorage = (diskSelection, onStart, onStarted, errorHandler) => {
+    window.localStorage.setItem("cockpit_anaconda",
+                                JSON.stringify({
+                                    mount_point_prefix: "/mnt/sysimage",
+                                    available_devices: diskSelection.usableDisks.map(d => "/dev/" + d),
+                                }));
+    cockpit_window = window.open("/cockpit/@localhost/storage/index.html", "storage-tab");
     onStart();
+    onStarted();
+};
+
+const stopCockpitStorage = () => {
+    if (cockpit_window) {
+        cockpit_window.close();
+        cockpit_window = null;
+    }
 };
 
 const StorageModifiedModal = ({ onClose, onRescan }) => {
@@ -55,7 +60,7 @@ const StorageModifiedModal = ({ onClose, onRescan }) => {
           footer={
               <>
                   <Button
-                    onClick={() => { onClose(); onRescan() }}
+                    onClick={() => { stopCockpitStorage(); onClose(); onRescan() }}
                     variant="primary"
                     id="storage-modified-modal-rescan-btn"
                     key="rescan"
@@ -64,7 +69,7 @@ const StorageModifiedModal = ({ onClose, onRescan }) => {
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => onClose()}
+                    onClick={() => { stopCockpitStorage(); onClose() }}
                     id="storage-modified-modal-ignore-btn"
                     key="ignore"
                   >
@@ -77,7 +82,7 @@ const StorageModifiedModal = ({ onClose, onRescan }) => {
     );
 };
 
-const ModifyStorageModal = ({ onClose, onToolStarted, errorHandler }) => {
+const ModifyStorageModal = ({ diskSelection, onClose, onToolStarted, errorHandler }) => {
     const [toolIsStarting, setToolIsStarting] = useState(false);
     const onStart = () => setToolIsStarting(true);
     const onStarted = () => { setToolIsStarting(false); onToolStarted() };
@@ -92,7 +97,8 @@ const ModifyStorageModal = ({ onClose, onToolStarted, errorHandler }) => {
           footer={
               <>
                   <Button
-                    onClick={() => startBlivetGUI(
+                    onClick={() => startCockpitStorage(
+                        diskSelection,
                         onStart,
                         onStarted,
                         errorHandler
@@ -103,7 +109,7 @@ const ModifyStorageModal = ({ onClose, onToolStarted, errorHandler }) => {
                     isDisabled={toolIsStarting}
                     variant="primary"
                   >
-                      {_("Launch Blivet-gui storage editor")}
+                      {_("Launch storage editor")}
                   </Button>
                   <Button
                     variant="link"
@@ -118,17 +124,17 @@ const ModifyStorageModal = ({ onClose, onToolStarted, errorHandler }) => {
           }>
             <TextContent>
                 <Text component={TextVariants.p}>
-                    {_("Blivet-gui is an advanced storage editor that lets you resize, delete, and create partitions. It can set up LVM and much more.")}
+                    {_("The storage editor lets you resize, delete, and create partitions. It can set up LVM and much more.")}
                 </Text>
                 <Text component={TextVariants.p}>
-                    {_("Changes made in Blivet-gui will directly affect your storage.")}
+                    {_("Changes made in the storage editor will directly affect your storage.")}
                 </Text>
             </TextContent>
         </Modal>
     );
 };
 
-export const ModifyStorage = ({ idPrefix, onCritFail, onRescan }) => {
+export const ModifyStorage = ({ idPrefix, diskSelection, onCritFail, onRescan }) => {
     const [openedDialog, setOpenedDialog] = useState("");
 
     return (
@@ -141,7 +147,8 @@ export const ModifyStorage = ({ idPrefix, onCritFail, onRescan }) => {
                 {_("Modify storage")}
             </Button>
             {openedDialog === "modify" &&
-            <ModifyStorageModal
+             <ModifyStorageModal
+              diskSelection={diskSelection}
               onClose={() => setOpenedDialog("")}
               onToolStarted={() => setOpenedDialog("rescan")}
               errorHandler={onCritFail({ context: N_("Modifying the storage failed.") })}
