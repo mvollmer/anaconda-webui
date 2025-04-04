@@ -823,12 +823,12 @@ class TestStorageCockpitIntegration(VirtInstallMachineCase, StorageCase):
                 r.check_disk(disk, f"{size} GB {disk} (MDRAID set ({raid_set}))", prefix=prefix)
                 r.check_disk_row(disk, "/", "SOMERAID1, RAID", f"{size} GB", False, prefix=prefix)
 
-        createPartitioningOnRAID(level="raid0")
+        createPartitioningOnRAID(level="raid1")
 
         # Exit the cockpit-storage iframe and return to installation
         b.switch_to_top()
         s.return_to_installation()
-        checkStorageReview(prefix="#cockpit-storage-integration-check-storage-dialog")
+        checkStorageReview(prefix="#cockpit-storage-integration-check-storage-dialog", raid_level="raid1")
         s.return_to_installation_cancel()
 
         # Delete RAID device and expect the disk selection to be set back to the parent disks
@@ -837,12 +837,12 @@ class TestStorageCockpitIntegration(VirtInstallMachineCase, StorageCase):
         self.dialog_apply()
         b.wait_not_present(self.card_row("Storage", 7))
 
-        createPartitioningOnRAID(level="raid1")
+        createPartitioningOnRAID(level="raid0")
 
         # Exit the cockpit-storage iframe and return to installation
         b.switch_to_top()
         s.return_to_installation()
-        checkStorageReview(prefix="#cockpit-storage-integration-check-storage-dialog", raid_level="raid1")
+        checkStorageReview(prefix="#cockpit-storage-integration-check-storage-dialog", raid_level="raid0")
         s.return_to_installation_confirm()
 
         self.assertNotIn("parted exception", m.execute("journalctl -t org.fedoraproject.Anaconda.Modules.Storage"))
