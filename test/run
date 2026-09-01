@@ -112,6 +112,9 @@ echo "<pool type='dir'>
 </pool>" > /tmp/storage-pool.xml
 virsh pool-define --file /tmp/storage-pool.xml
 
+# Warm up the RAM
+python test/alloc32g.py
+
 export TEST_OS
 # Keep the scheduler's RAM budget in sync with VirtInstallMachine (capacity planning).
 # Actual VM memory is also enforced in VirtInstallMachine.__init__.
